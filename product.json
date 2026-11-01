@@ -1,0 +1,6 @@
+{
+  "name": "Finder",
+  "publisher": "Kangpg",
+  "id": "Kangpg.Finder",
+  "install_marker": "finder.install"
+}

@@ -1,0 +1,63 @@
+{
+  "checked": "2026-10-29",
+  "source_root": ".",
+  "sha256": {
+    "VERIFICATION.md": "D2C48A041D7234D89587D6B104AA0057F4F41B7C1C195C63DCDB18860F314530",
+    "product.json": "8D1410D22C2B3DCAF48B3851C583B19D4C4589FE036E75A14CBAC6FE495D0608",
+    "Cargo.toml": "EC9EA7C6E00CCD624D0434236CB55CBE67397681F687ABA6706F9DB44343206D",
+    "src/index.rs": "823D5D2C49D95F99441F40BD959129571369534D420DA74EFA1413F5516ED98E",
+    "src/graphics.rs": "310A6202DE995EAAD2D4BCB5A5B8926EC1C66D4ED529C8A76070EC2D6B8A21E8",
+    "artifacts/release/Finder-0.1.0-manifest.json": "F5D8E11F0CDF5EAB229E0F19026439E227776E05DEC4CF3718CF26204765ADC4"
+  },
+  "external_sources": [
+    {
+      "id": "W1",
+      "title": "공식 다운로드와 배포 버전",
+      "url": "https://www.voidtools.com/downloads/",
+      "checked": "2026-10-29"
+    },
+    {
+      "id": "W2",
+      "title": "설치 방식과 x64 지원",
+      "url": "https://www.voidtools.com/support/everything/installing_everything/",
+      "checked": "2026-10-29"
+    },
+    {
+      "id": "W3",
+      "title": "공식 기능 소개",
+      "url": "https://www.voidtools.com/support/everything/",
+      "checked": "2026-10-29"
+    },
+    {
+      "id": "W4",
+      "title": "검색과 content 검색",
+      "url": "https://www.voidtools.com/support/everything/searching/",
+      "checked": "2026-10-29"
+    },
+    {
+      "id": "W5",
+      "title": "폴더 색인과 감시",
+      "url": "https://www.voidtools.com/support/everything/folder_indexing/",
+      "checked": "2026-10-29"
+    },
+    {
+      "id": "W6",
+      "title": "1.4와 1.5의 기능 구분",
+      "url": "https://www.voidtools.com/support/everything/whats_new/",
+      "checked": "2026-10-29"
+    },
+    {
+      "id": "W7",
+      "title": "1.5 서버 플러그인",
+      "url": "https://www.voidtools.com/support/everything/plugins/",
+      "checked": "2026-10-29"
+    },
+    {
+      "id": "W8",
+      "title": "ETP 검색과 파일 접근",
+      "url": "https://www.voidtools.com/support/everything/etp/",
+      "checked": "2026-10-29"
+    }
+  ],
+  "measurements": "Existing records only; no new benchmark executed."
+}

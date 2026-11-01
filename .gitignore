@@ -1,0 +1,10 @@
+/target/
+/artifacts/
+/data/
+/.codex/
+/.wix/
+*.reaidx
+*.tmp
+/finder.exe
+/finder-cli.exe
+/VERIFICATION.md

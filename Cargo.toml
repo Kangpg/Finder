@@ -1,0 +1,58 @@
+[package]
+name = "finder"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+default-run = "finder"
+autobins = false
+authors = ["Kangpg"]
+description = "A local Windows x64 NTFS filename index and desktop search application"
+
+[features]
+default = ["gui"]
+gui = ["dep:eframe", "dep:wgpu"]
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = { version = "2.0", features = ["serde"] }
+blake3 = "1.8"
+memchr = "2.7"
+regex = "1.12"
+rayon = "1.11"
+walkdir = "2.5"
+dunce = "1.0"
+raw-window-handle = "0.6"
+tempfile = "3.23"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+eframe = { version = "=0.36.2", optional = true, default-features = false, features = ["accesskit", "default_fonts", "glow", "wgpu_no_default_features"] }
+
+wgpu = { version = "30.0", optional = true, default-features = false, features = ["std", "dx12", "wgsl"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_Ole", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_System_Com_StructuredStorage", "Win32_System_Registry"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl", "Win32_System_Threading", "Win32_System_ProcessStatus", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Com", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_Ole", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_LibraryLoader"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[[bin]]
+name = "finder"
+path = "src/main.rs"
+
+
+[[bin]]
+name = "finder-cli"
+path = "src/bin/finder-cli.rs"
+
+[dev-dependencies]
+pollster = "1.0"
+
+[build-dependencies]
+winresource = "0.1"
+serde_json = "1.0"

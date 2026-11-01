@@ -1,0 +1,26 @@
+﻿id,priority,status,title,cause,change,verification,next_step,record_date,evidence
+FND-001,P1,구현 검증,갱신 중 검색과 UI 대기,색인과 검색이 같은 실행 흐름을 기다림,"독립 작업자와 CPU 풀, 불변 스냅샷 게시로 분리",실제 임시 폴더 및 갱신 게이트 통합 검사,대규모 실제 NTFS에서도 동일한 동시성 확인,10-14,VERIFICATION.md 10-14; background.rs
+FND-002,P2,구현 검증,경로 조건과 검색 편의 부족,파일명 단독 검색으로 업무 경로를 좁히기 어려움,"\경로 조건, Boolean, 정규식, 필터, 최근·즐겨찾기 추가",실제 CLI와 검색식·Unicode 회귀 검사,Everything 문법 전체와의 호환성은 별도 범위,10-15,VERIFICATION.md 10-15; query.rs
+FND-003,P2,구현 검증,여러 파일 선택과 복사·수정,단일 선택 중심의 파일 동작,"Ctrl·Shift 선택, 복사·잘라내기·붙여넣기, 이름 변경",임시 파일의 실제 파일 작업 및 UI 입력 검사,다양한 Shell 확장 조합의 실제 사용 확인,10-15,VERIFICATION.md 10-15; fileops.rs / gui.rs
+FND-004,P2,구현 검증,파일 드래그와 분할 검색 필요,한 검색 화면에서 탐색·전달을 반복,"네이티브 드래그, 좌우 검색, 공유·독립 색인 선택",분할 Runtime·생산 UI·드래그 데이터 계약 검사,다중 모니터·DPI·외부 앱 드롭 확인,10-15,VERIFICATION.md 10-15; native_drag.rs / background.rs / search_pane.rs
+FND-005,P2,구현 검증,스크롤바 조작이 선택·드래그로 전파,floating 스크롤바와 행 포인터 영역의 중복 소유,"solid 스크롤바로 영역 예약, 목록 경계 수정",실제 egui 가로·세로 스크롤바 입력 검사,일반 회귀 유지,10-15,VERIFICATION.md 10-15; gui.rs
+FND-006,P2,구현 검증,SVN 표시와 파일 아이콘 불일치,자체 배지와 svn CLI 해석을 따로 유지,"Windows Shell 원본 합성 아이콘·오버레이 사용, CLI 제거",실제 Shell 아이콘·바로가기·TortoiseSVN 관측 기록,Windows 오버레이 슬롯·확장 설정 차이는 별도 확인,10-15,VERIFICATION.md 10-15; row_metadata.rs / shell_path.rs
+FND-007,P2,구현 검증,방향키 이동 시 전체 갱신처럼 보임,선택·스크롤·표시 갱신의 경계가 불명확,선택 이동과 검색 요청을 분리하고 최소 스크롤,실제 방향키 100회 완료 작업 및 선택 검사,실제 GPU 화면의 체감은 별도 관측,10-15,VERIFICATION.md 10-15; gui.rs / search_pane.rs
+FND-008,P2,구현 검증,설정과 마지막 폴더가 유지되지 않음,휘발성 선택 상태와 설정 저장 경계 부족,마지막 성공 폴더·정렬·갱신 간격을 백업 후 원자 저장,재로드·외부 변경 거부·미지 필드 보존 검사,새 설정은 같은 저장 경계를 재사용,10-15,VERIFICATION.md 10-15; preferences.rs
+FND-009,P2,구현 검증,검색 UI의 정렬·진행 표시·설정 분산,기능이 늘며 조작 위치와 표시 기준이 불일치,"검색 중심 배치, 좌측 정렬, 단축키 열, 설정 탭·스피너",실제 egui 입력·CPU 미리보기·라벨 위치 검사,스피너의 실제 GPU 부하와 DPI 사용성 확인,10-15~22,VERIFICATION.md 10-15~22; gui.rs / appearance.rs
+FND-010,P1,부분 개선,크기 정렬 때 속성을 매번 다시 조회,정렬용 메타데이터를 요청마다 재수집,"세대별 성공·실패 관측 재사용, 갱신 시 무효화",생산 경계·완료 작업 전후 기록,"최초 누락 조회는 필요, 대규모 첫 정렬 비용 개선",10-19,VERIFICATION.md 10-19; index.rs / ordering.rs
+FND-011,P1,구현 검증,위치 정렬이 오래 걸림,반복 조상 경로 복원·소문자 키 할당·힙 구성,Locations가 부모 경로·위치 그룹·순서를 준비·공유,"34,674항목 위치 반복 184.01→6.66ms 기록","OS 캐시 미통제 단일 비교, 실제 화면 확인은 별도",10-19,VERIFICATION.md 10-19; locations.rs
+FND-012,P2,구현 검증,검색어 입력마다 결과 목록 깜빡임,요청을 보낼 때 기존 행·선택을 먼저 비움,기존 View를 유지하고 최신 완료 결과에서 교체,입력 102회 대기 프레임의 빈 목록 0개,실제 GPU 깜빡임까지 해결됐다고 단정하지 않음,10-19,VERIFICATION.md 10-19; search_pane.rs
+FND-013,P1,부분 개선,파일 우클릭 메뉴가 느림,"PIDL 준비와 파일 작업 대기, 외부 메뉴 구성 비용","Shell 준비 작업자 분리, Windows 확장 메뉴 유지","PIDL 반복 약 3ms, 메뉴 구성 중앙값 677.34ms",실제 팝업·하위 메뉴 및 확장별 지연 계측,10-19,VERIFICATION.md 10-19; services.rs / shell_menu.rs
+FND-014,P2,검증 대기,트레이 설정 후 다음 메뉴가 소실,메뉴 종료·포커스·명령 전달의 중복 경로,팝업 ID 반환 후 자원 정리·전용 메시지 전달,실제 메시지 순서·콜백·재진입 자동 검사,트레이에서 설정→재우클릭의 실제 마우스 재검증,10-19,VERIFICATION.md 10-19; resident.rs
+FND-015,P2,구현 검증,상주 실행과 전역 단축키 필요,창 닫기와 프로세스 종료를 구분하지 못함,"트레이 열기·설정·종료, RegisterHotKey, 숨김 복귀",실제 핫키 등록·충돌·해제와 메시지 전달 검사,Explorer 재시작·다중 모니터 수동 확인,10-19,VERIFICATION.md 10-19; resident.rs
+FND-016,P2,검증 대기,USN 크기 고급 설정과 단위 불일치,단위 표현 분산과 저널 설정 UI 부재,"조회·명시 적용 UI, B/KB/MB/GB/TB 1,024배 통일","변환·설정·오류 경로 검사, 일반 색인은 저널 변경 안 함",관리자 환경에서 실제 적용·재조회는 미실행,10-19,VERIFICATION.md 10-19; journal.rs / journal_settings.rs / byte_size.rs
+FND-017,P1,검증 대기,폴더를 열자 동명 배치가 실행됨,문자열 실행 경로가 deploy와 deploy.bat를 혼동 가능,정확한 PIDL·explore 및 실제 파일 종류 재검사,임시 동명 폴더·bat의 PIDL 왕복과 UI 의도 검사,네이티브 Explorer 최종 표시의 사용자 확인,10-20,VERIFICATION.md 10-20; shell_path.rs / services.rs
+FND-018,P2,구현 검증,한국어·영어를 실행 중 바꾸기 어려움,초기 언어와 보관된 메시지 문자열의 수명 결합,"ko/en 설정, 앱 메시지를 즉시 재평가하는 구조",독립 영문 프로세스·UI 선택·상태 보존 검사,Windows·SVN 메뉴 언어는 OS/확장 소유,10-20,VERIFICATION.md 10-20; i18n.rs
+FND-019,P1,구현 검증,선택적인 파일명 검색도 전체 검사,파일명 substring마다 모든 레코드를 검사,Unicode hashed trigram 후보 + 원래 검색식 재검사,"강제 scan과 결과 ID·개수 동일, 100만 합성 측정",메모리·준비 비용 및 흔한/짧은 질의 폴백 유지,10-22,VERIFICATION.md 10-22; trigram.rs / query.rs
+FND-020,P1,구현 검증,검색 완료가 화면 밖 속성 조회를 기다림,"상세 열 설정 시 최대 5,000행을 조회 후 게시",표시용 속성을 보이는 행 작업자로 이동,"게시 시 메타데이터 관측 0, 정렬은 필요 조회 유지",실제 사용자 질의의 체감 개선은 별도 확인,10-22,VERIFICATION.md 10-22; background.rs / row_metadata.rs
+FND-021,P0,검증 대기,포커스하면 다른 앱까지 약 5초 한 프레임,"사용자 증상 확인, 포커스된 CPU/GPU 표본 미확보","DX12 기본 출력, OpenGL 비교 옵션, 캐시 수명 수정",실제 DX12 오프스크린 장치·파이프라인 통과,동일 PC foreground 재현·presentation 계측 후 종료,10-27,VERIFICATION.md 10-27; graphics.rs / search_pane.rs
+FND-022,P1,검증 대기,실제 NTFS 볼륨 색인 권한과 USN 검증,일반 권한 볼륨 열기에서 Access Denied,"폴더 모드 제공, 명확한 오류·USN 파서 경계 처리","실제 권한 거부 및 파서 검사, 성공 NTFS 재생 미검증",관리자 읽기 환경에서 생성·이름 변경·삭제·저널 교체 검사,10-14~29,VERIFICATION.md 10-14~29; ntfs.rs / usn.rs
+FND-023,P1,검증 대기,대량 색인 제한 오류와 규모 상한,여러 자원 예산이 서로 다른 경계에 존재,"현재 1천만 레코드, 저장 512 MB, GUI 5천개를 구분",현재 source 상수·부하 한도 검사 확인,사용자 원본 오류의 입력·빌드와 실제 레코드 수 재현,10-19~29,VERIFICATION.md 10-19~29; index.rs / storage.rs / background.rs
+FND-024,P2,구현 검증,제품 이름·배포·Git 소스 분리,개발용 이름과 실행 파일 위주 배포,"Finder/Kangpg, 정적 CRT, 설치·포터블, 허용 목록 소스","89개 기본 검사, 실제 임시 설치·업그레이드·제거",타 PC 실행·서명·SmartScreen·설치 마법사 사용성 검증,10-29,VERIFICATION.md 10-29; product.json / scripts / installer / app_paths.rs
+FND-025,P3,보류,원격 색인 검색과 파일 전송,ETP/FTP 요구는 논의됐으나 당장 불필요,"현재 로컬 검색에 집중, 서버·전송 구현하지 않음",현재 소스와 사용자 보류 의사,필요 시 인증·공개 범위·전송 요구부터 재정의,논의 후 보류,VERIFICATION.md 논의 후 보류; user-requested deferral / source scope
