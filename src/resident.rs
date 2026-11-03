@@ -25,9 +25,6 @@ const WORK_MESSAGE: u32 = WM_APP + 18;
 const STOP_MESSAGE: u32 = WM_APP + 19;
 const MENU_COMMAND_MESSAGE: u32 = WM_APP + 20;
 const NIN_KEYSELECT: u32 = NIN_SELECT | NINF_KEY;
-const SHOW: u8 = 1;
-const SETTINGS: u8 = 2;
-const QUIT: u8 = 4;
 #[derive(Default, Clone)]
 pub struct Status {
     pub tray: bool,
@@ -40,12 +37,14 @@ struct Shared {
     result: Mutex<Option<std::result::Result<Option<Hotkey>, crate::i18n::Message>>>,
     event: AtomicU8,
     stop: AtomicBool,
-    wake: Arc<dyn Fn() + Send + Sync>,
+    wake: Arc<dyn Fn(Option<Event>) + Send + Sync>,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Event {
-    Show,
-    Settings,
-    Quit,
+    Show = 1,
+    Settings = 2,
+    Quit = 4,
 }
 pub struct Controller {
     shared: Arc<Shared>,
@@ -57,18 +56,36 @@ impl Controller {
     pub fn start(
         owner: isize,
         hotkey: Option<Hotkey>,
-        wake: Arc<dyn Fn() + Send + Sync>,
+        wake: Arc<dyn Fn(Option<Event>) + Send + Sync>,
     ) -> Result<Self> {
         Self::start_inner(owner, hotkey, wake, true)
     }
     #[cfg(test)]
     pub(crate) fn test_controller(hotkey: Hotkey) -> Result<Self> {
-        Self::start_inner(0, Some(hotkey), Arc::new(|| {}), false)
+        Self::start_inner(0, Some(hotkey), Arc::new(|_| {}), false)
+    }
+    #[cfg(test)]
+    pub(crate) fn test_notifying_controller(
+        hotkey: Hotkey,
+        wake: Arc<dyn Fn(Option<Event>) + Send + Sync>,
+    ) -> Result<Self> {
+        Self::start_inner(0, Some(hotkey), wake, false)
+    }
+    #[cfg(test)]
+    pub(crate) fn test_dispatch_activation(&self, settings: bool) {
+        let window = self.shared.window.lock().unwrap().unwrap();
+        unsafe {
+            if settings {
+                SendMessageW(window as HWND, MENU_COMMAND_MESSAGE, 2, 0);
+            } else {
+                SendMessageW(window as HWND, WM_HOTKEY, 1, 0);
+            }
+        }
     }
     fn start_inner(
         owner: isize,
         hotkey: Option<Hotkey>,
-        wake: Arc<dyn Fn() + Send + Sync>,
+        wake: Arc<dyn Fn(Option<Event>) + Send + Sync>,
         tray: bool,
     ) -> Result<Self> {
         let shared = Arc::new(Shared {
@@ -111,7 +128,7 @@ impl Controller {
                 }
                 if let Some(error) = error {
                     *state.result.lock().unwrap() = Some(Err(error));
-                    (state.wake)();
+                    (state.wake)(None);
                 }
             })?;
         let controller = Self {
@@ -162,15 +179,9 @@ impl Controller {
     }
     pub fn take_event(&self) -> Option<Event> {
         let bits = self.shared.event.swap(0, Ordering::AcqRel);
-        if bits & QUIT != 0 {
-            Some(Event::Quit)
-        } else if bits & SETTINGS != 0 {
-            Some(Event::Settings)
-        } else if bits & SHOW != 0 {
-            Some(Event::Show)
-        } else {
-            None
-        }
+        [Event::Quit, Event::Settings, Event::Show]
+            .into_iter()
+            .find(|event| bits & *event as u8 != 0)
     }
     pub fn can_hide(&self) -> bool {
         let s = self.status();
@@ -347,14 +358,18 @@ impl State {
             self.shared.status.lock().unwrap().error =
                 result.as_ref().err().cloned().unwrap_or_default();
             *self.shared.result.lock().unwrap() = Some(result);
-            (self.shared.wake)();
+            (self.shared.wake)(None);
         }
     }
-    fn signal(&self, event: u8) {
-        self.shared.event.fetch_or(event, Ordering::AcqRel);
-        (self.shared.wake)();
+    fn signal(&self, event: Event) {
+        self.shared.event.fetch_or(event as u8, Ordering::AcqRel);
+        // Restoration reaches the frontend at the native event boundary, before
+        // a hidden viewport gets another logic/UI pass to consume the event.
+        (self.shared.wake)(Some(event));
     }
-    fn reveal(&self, event: u8) {
+    fn reveal(&self, event: Event) {
+        // Queue frontend restoration before cross-thread native focus work.
+        self.signal(event);
         unsafe {
             if !self.owner.is_null()
                 && GetPropW(self.owner, windows_sys::w!("Kangpg.Finder.Resident.Owner"))
@@ -371,7 +386,6 @@ impl State {
                 SetForegroundWindow(self.owner);
             }
         }
-        self.signal(event);
     }
     fn add_tray(&self) {
         if !self.tray_enabled {
@@ -388,7 +402,7 @@ impl State {
                 }
             }
             self.shared.status.lock().unwrap().tray = added;
-            (self.shared.wake)();
+            (self.shared.wake)(None);
         }
     }
     fn change_hotkey(&self, window: HWND, desired: Option<Hotkey>) -> Result<()> {
@@ -426,9 +440,9 @@ impl State {
     }
     fn menu_action(&self, command: usize) {
         match command {
-            1 => self.reveal(SHOW),
-            2 => self.reveal(SETTINGS),
-            3 => self.signal(QUIT),
+            1 => self.reveal(Event::Show),
+            2 => self.reveal(Event::Settings),
+            3 => self.signal(Event::Quit),
             _ => {}
         }
     }
@@ -445,7 +459,7 @@ impl State {
             Err(e) => {
                 self.shared.status.lock().unwrap().error =
                     crate::i18n::Message::capture(|| format!("{e:#}"));
-                (self.shared.wake)();
+                (self.shared.wake)(None);
             }
         }
     }
@@ -483,14 +497,14 @@ unsafe extern "system" fn procedure(
                     .get()
                     .is_some_and(|(id, _)| id as usize == wparam)
                 {
-                    state.reveal(SHOW);
+                    state.reveal(Event::Show);
                 }
                 return 0;
             }
             if message == TRAY_MESSAGE {
                 if !state.menu_active.get() {
                     match state.tray_protocol.get().action(wparam, lparam) {
-                        Some(TrayAction::Show) => state.reveal(SHOW),
+                        Some(TrayAction::Show) => state.reveal(Event::Show),
                         Some(TrayAction::Menu) => state.menu(window),
                         None => {}
                     }
@@ -612,7 +626,7 @@ fn run(
             shared.status.lock().unwrap().error =
                 crate::i18n::Message::capture(|| format!("{e:#}"));
         }
-        (shared.wake)();
+        (shared.wake)(None);
         state.apply_pending(handle);
         let mut message: MSG = std::mem::zeroed();
         while !shared.stop.load(Ordering::Acquire) {
@@ -802,7 +816,7 @@ mod tests {
             serde_json::json!({"phase":"baseline_idle","elapsed_ms":base_start.elapsed().as_secs_f64()*1000.,"cpu_ms":(after.0-before.0) as f64/10000.,"peak_working_set":after.1})
         );
         let init = Instant::now();
-        let controller = Controller::start_inner(0, Some(h), Arc::new(|| {}), false).unwrap();
+        let controller = Controller::start_inner(0, Some(h), Arc::new(|_| {}), false).unwrap();
         wait(|| controller.status().hotkey == Some(h));
         let first_ms = init.elapsed().as_secs_f64() * 1000.;
         let before = sample();
@@ -824,9 +838,9 @@ mod tests {
             win: false,
             key: 135,
         };
-        let first = Controller::start_inner(0, Some(h), Arc::new(|| {}), false).unwrap();
+        let first = Controller::start_inner(0, Some(h), Arc::new(|_| {}), false).unwrap();
         wait(|| first.status().hotkey == Some(h));
-        let second = Controller::start_inner(0, None, Arc::new(|| {}), false).unwrap();
+        let second = Controller::start_inner(0, None, Arc::new(|_| {}), false).unwrap();
         wait(|| second.shared.window.lock().unwrap().is_some());
         second.apply(Some(h)).unwrap();
         let mut collision = None;
@@ -906,7 +920,7 @@ mod tests {
         drop(second);
         assert!(start.elapsed() < Duration::from_secs(2));
         assert!(shared.window.lock().unwrap().is_none());
-        let third = Controller::start_inner(0, Some(h), Arc::new(|| {}), false).unwrap();
+        let third = Controller::start_inner(0, Some(h), Arc::new(|_| {}), false).unwrap();
         wait(|| third.status().hotkey == Some(h));
     }
 }

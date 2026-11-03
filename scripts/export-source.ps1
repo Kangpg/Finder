@@ -5,7 +5,7 @@ $destinationRoot=[IO.Path]::GetFullPath($Destination)
 if($destinationRoot -eq $root -or $destinationRoot.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Source export destination must be outside the project'}
 if(Test-Path -LiteralPath $destinationRoot){throw 'Source export destination already exists; existing content was preserved'}
 $files=@()
-foreach($name in @('Cargo.toml','Cargo.lock','build.rs','product.json','README.md','Start-GUI.cmd','Start-GUI.ps1','.gitignore','.cargo\config.toml')){
+foreach($name in @('Cargo.toml','Cargo.lock','build.rs','product.json','README.md','CHANGELOG.md','Start-GUI.cmd','Start-GUI.ps1','.gitignore','.cargo\config.toml')){
     $file=Join-Path $root $name
     if(-not(Test-Path -LiteralPath $file -PathType Leaf)){throw ('Required source file missing: '+$name)}
     $files+=Get-Item -LiteralPath $file

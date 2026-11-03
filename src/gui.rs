@@ -1555,11 +1555,10 @@ impl eframe::App for App {
             {
                 self.window = Some(handle.hwnd.get());
                 if self.resident.is_none() {
-                    let notify = ui.ctx().clone();
                     match crate::resident::Controller::start(
                         handle.hwnd.get(),
                         self.prefs.hotkey,
-                        Arc::new(move || notify.request_repaint()),
+                        resident_notify(ui.ctx().clone()),
                     ) {
                         Ok(controller) => self.resident = Some(controller),
                         Err(e) => {
@@ -1598,6 +1597,27 @@ impl eframe::App for App {
             input.events.insert(2, egui::Event::PointerGone);
         }
     }
+}
+#[cfg(windows)]
+fn resident_notify(
+    ctx: egui::Context,
+) -> Arc<dyn Fn(Option<crate::resident::Event>) + Send + Sync> {
+    Arc::new(move |event| {
+        if matches!(
+            event,
+            Some(crate::resident::Event::Show | crate::resident::Event::Settings)
+        ) {
+            for command in [
+                egui::ViewportCommand::Visible(true),
+                egui::ViewportCommand::Minimized(false),
+                egui::ViewportCommand::Focus,
+            ] {
+                ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, command);
+            }
+        }
+        // Wake after all commands have been queued, even without another UI pass.
+        ctx.request_repaint_of(egui::ViewportId::ROOT);
+    })
 }
 impl App {
     fn tick_background(&mut self, ctx: &egui::Context) {
@@ -1678,9 +1698,6 @@ impl App {
                     crate::resident::Event::Quit => self.quit(ctx),
                     event => {
                         self.settings_tab = matches!(event, crate::resident::Event::Settings);
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                         if !self.settings_tab {
                             ctx.memory_mut(|m| {
                                 m.request_focus(egui::Id::new(("search-query", self.focused)))
@@ -2782,6 +2799,69 @@ mod tests {
                 .contains(&egui::ViewportCommand::CancelClose)
         );
         out.textures_delta.clear();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn native_hotkey_restores_hidden_root_before_app_polls_or_draws_again() {
+        let ctx = egui::Context::default();
+        let mut app = fixture();
+        let query = app.panes[0].query.clone();
+        let search_id = app.panes[0].search_id;
+        let hotkey = crate::hotkey::Hotkey {
+            ctrl: true,
+            alt: true,
+            shift: true,
+            win: false,
+            key: 132,
+        };
+        app.resident = Some(
+            crate::resident::Controller::test_notifying_controller(
+                hotkey,
+                resident_notify(ctx.clone()),
+            )
+            .unwrap(),
+        );
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while app.resident.as_ref().unwrap().status().hotkey != Some(hotkey) {
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        for settings in [false, true, false] {
+            let mut hidden = input(None);
+            let viewport = hidden.viewports.get_mut(&egui::ViewportId::ROOT).unwrap();
+            viewport.occluded = Some(true);
+            viewport.minimized = Some(false);
+            let _ = ctx.run_logic(&hidden, |ctx| app.handle_close(ctx, true));
+            app.resident
+                .as_ref()
+                .unwrap()
+                .test_dispatch_activation(settings);
+            // No App::poll_resident or App::ui has run since the native event.
+            let restored = ctx.run_logic(&hidden, |_| {});
+            let commands = &restored.viewport_commands[&egui::ViewportId::ROOT];
+            for expected in [
+                egui::ViewportCommand::Visible(true),
+                egui::ViewportCommand::Minimized(false),
+                egui::ViewportCommand::Focus,
+            ] {
+                assert!(commands.contains(&expected), "missing {expected:?}");
+            }
+            let _ = ctx.run_logic(&hidden, |ctx| app.poll_resident(ctx));
+            assert_eq!(app.settings_tab, settings);
+            assert_eq!(app.panes[0].query, query);
+            assert_eq!(app.panes[0].search_id, search_id);
+        }
+        // A status update must never reveal a hidden application.
+        resident_notify(ctx.clone())(None);
+        let status = ctx.run_logic(&input(None), |_| {});
+        assert!(
+            !status
+                .viewport_commands
+                .values()
+                .flatten()
+                .any(|command| { matches!(command, egui::ViewportCommand::Visible(true)) })
+        );
     }
 
     #[test]

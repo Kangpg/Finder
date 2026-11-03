@@ -29,6 +29,8 @@ Use the project's configured MSVC x64 target, cargo fmt --check, relevant cargo 
 
 Release GUI and CLI binaries are distinct PE subsystems (2 and 3). Preserve old executables before replacement, verify x64/PE subsystem, hidden --version completion, and any archive contents. Do not kill or relaunch the user's app to complete packaging unless authorized. A mapped old executable can keep running after its path is replaced; tell the user when full exit/reopen is necessary. Keep settings, indexes, and user files out of distribution archives. Avoid GitKraken hook/integration tools for this app's ordinary source/build work.
 
+For tray/shortcut recovery, test the native notification boundary with a hidden root viewport before another App::logic/App::ui call. Registration-only tests and a manually visible app do not prove close-to-tray restoration. Native callbacks must queue root visibility/unminimize/focus commands; status-only notifications must preserve hidden state. A separate process's successful hotkey probe does not identify another process's registration or prove that physical/remote Win-key input reaches it.
+
 ## Packaging and source export
 
 Product display name, publisher, identity and installation marker live in product.json and are consumed by build.rs and the release script. Icon geometry is owned by src/icon_art.rs; PE resources, installer, window and tray derive from it. The MSVC target statically links CRT; verify direct PE imports rather than silently installing a system runtime.
