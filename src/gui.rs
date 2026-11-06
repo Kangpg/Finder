@@ -1369,6 +1369,18 @@ impl App {
                 Ok(crate::shell_menu::Outcome::Cancelled) => {}
                 Ok(crate::shell_menu::Outcome::Invoked) => self.refresh_after_files(),
                 Ok(crate::shell_menu::Outcome::Extra(extra)) => match extra {
+                    crate::shell_menu::Extra::OpenLocation => {
+                        if let [item] = request.items.as_slice() {
+                            self.submit(if item.directory {
+                                Job::Open {
+                                    path: item.path.clone(),
+                                    directory: true,
+                                }
+                            } else {
+                                Job::Reveal(item.path.clone())
+                            });
+                        }
+                    }
                     crate::shell_menu::Extra::CopyPaths => ctx.copy_text(
                         request
                             .paths

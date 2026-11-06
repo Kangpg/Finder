@@ -13,6 +13,7 @@ const FIRST: u32 = 1;
 const LAST: u32 = 0x6fff;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Extra {
+    OpenLocation,
     CopyPaths,
     CopyNames,
     Rename,
@@ -20,15 +21,21 @@ pub enum Extra {
 impl Extra {
     fn command(self) -> u32 {
         match self {
+            Self::OpenLocation => 0x7003,
             Self::CopyPaths => 0x7000,
             Self::CopyNames => 0x7001,
             Self::Rename => 0x7002,
         }
     }
     fn from_command(id: u32) -> Option<Self> {
-        [Self::CopyPaths, Self::CopyNames, Self::Rename]
-            .into_iter()
-            .find(|x| x.command() == id)
+        [
+            Self::OpenLocation,
+            Self::CopyPaths,
+            Self::CopyNames,
+            Self::Rename,
+        ]
+        .into_iter()
+        .find(|x| x.command() == id)
     }
 }
 pub enum Outcome {
@@ -194,6 +201,8 @@ struct NativeMenu {
     context: IContextMenu,
     host: Host,
     count: u32,
+    single: bool,
+    working_directory: Option<Vec<u16>>,
 }
 impl NativeMenu {
     fn new(
@@ -227,6 +236,8 @@ impl NativeMenu {
             context,
             host,
             count,
+            single: selection.pointers().len() == 1,
+            working_directory: selection.working_directory().map(<[u16]>::to_vec),
         })
     }
     fn add_extras(&self) -> Result<()> {
@@ -248,15 +259,26 @@ impl NativeMenu {
             submenu.append(MF_STRING, extra.command() as usize, label)?;
         }
         self.menu.append(MF_SEPARATOR, 0, "")?;
+        self.menu.append(
+            MF_STRING | if self.single { MF_ENABLED } else { MF_GRAYED },
+            Extra::OpenLocation.command() as usize,
+            crate::i18n::text("해당 폴더 열기", "Open containing folder"),
+        )?;
         self.menu
             .append(MF_POPUP, submenu.0.0 as usize, crate::product::NAME)?;
         // A submenu attached successfully is destroyed with its parent.
         std::mem::forget(submenu);
         Ok(())
     }
-    fn invoke(&self, owner: HWND, offset: Option<u32>, point: POINT, extended: bool) -> Result<()> {
+    fn invocation(
+        &self,
+        owner: HWND,
+        offset: Option<u32>,
+        point: POINT,
+        extended: bool,
+    ) -> CMINVOKECOMMANDINFOEX {
         let offset = offset.map(|n| n as usize);
-        let info = CMINVOKECOMMANDINFOEX {
+        CMINVOKECOMMANDINFOEX {
             cbSize: std::mem::size_of::<CMINVOKECOMMANDINFOEX>() as u32,
             fMask: SEE_MASK_UNICODE
                 | CMIC_MASK_PTINVOKE
@@ -266,10 +288,17 @@ impl NativeMenu {
                 PCSTR(n as *const _)
             }),
             lpVerbW: offset.map_or(w!("properties"), |n| PCWSTR(n as *const _)),
+            lpDirectoryW: self
+                .working_directory
+                .as_ref()
+                .map_or(PCWSTR::null(), |path| PCWSTR(path.as_ptr())),
             nShow: SW_SHOWNORMAL.0,
             ptInvoke: point,
             ..Default::default()
-        };
+        }
+    }
+    fn invoke(&self, owner: HWND, offset: Option<u32>, point: POINT, extended: bool) -> Result<()> {
+        let info = self.invocation(owner, offset, point, extended);
         unsafe {
             self.context
                 .InvokeCommand((&info as *const CMINVOKECOMMANDINFOEX).cast())
@@ -456,6 +485,68 @@ pub fn inspect(paths: &[std::path::PathBuf], extended: bool) -> Result<Vec<Entry
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn containing_folder_is_a_root_command_and_shell_launches_keep_selection_directory() {
+        // Installed Shell extensions share native state within a process. Keep
+        // this additional real-menu probe separate from concurrent menu/icon tests.
+        const CHILD: &str = "FINDER_CONTAINING_FOLDER_MENU_TEST_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "shell_menu::tests::containing_folder_is_a_root_command_and_shell_launches_keep_selection_directory", "--nocapture"])
+                .env(CHILD, "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "native menu probe failed: {}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        let _ole = crate::native_drag::Apartment::initialize().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let folder = temp.path().join("한글 배치 & folder");
+        std::fs::create_dir(&folder).unwrap();
+        let first = folder.join("first.bat");
+        let second = folder.join("second.cmd");
+        let elsewhere = temp.path().join("elsewhere.txt");
+        for path in [&first, &second, &elsewhere] {
+            std::fs::write(path, b"never executed").unwrap();
+        }
+        for paths in [
+            vec![first.clone()],
+            vec![first.clone(), second],
+            vec![first, elsewhere],
+        ] {
+            let epoch = std::sync::atomic::AtomicU64::new(1);
+            let selection = crate::shell_path::prepare(&paths, &epoch, 1).unwrap();
+            let menu = NativeMenu::new(&selection, None, false).unwrap();
+            menu.add_extras().unwrap();
+            let count = unsafe { GetMenuItemCount(Some(menu.menu.0)) };
+            assert!(
+                (0..count).any(|position| unsafe { GetMenuItemID(menu.menu.0, position) }
+                    == Extra::OpenLocation.command())
+            );
+            let flags =
+                unsafe { GetMenuState(menu.menu.0, Extra::OpenLocation.command(), MF_BYCOMMAND) };
+            assert_eq!(flags & MF_GRAYED.0 != 0, paths.len() != 1);
+            assert_eq!(
+                Extra::from_command(Extra::OpenLocation.command()),
+                Some(Extra::OpenLocation)
+            );
+            let info = menu.invocation(HWND::default(), Some(0), POINT::default(), false);
+            if paths.iter().all(|p| p.parent() == paths[0].parent()) {
+                let working = unsafe { info.lpDirectoryW.to_string().unwrap() };
+                assert_eq!(
+                    dunce::canonicalize(working).unwrap(),
+                    dunce::canonicalize(&folder).unwrap()
+                );
+            } else {
+                assert!(info.lpDirectoryW.is_null());
+            }
+        }
+    }
     #[test]
     #[ignore = "measures real root Shell menu preparation without displaying or invoking it"]
     fn menu_preparation_measurement() {

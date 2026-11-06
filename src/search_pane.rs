@@ -21,12 +21,13 @@ enum FileMenuItem {
     CopyName,
     CopyPath,
     Reveal,
+    OpenLocation,
     OpenParent,
     Edit,
     Info,
 }
 impl FileMenuItem {
-    const ALL: [Self; 11] = [
+    const ALL: [Self; 12] = [
         Self::Copy,
         Self::Cut,
         Self::Paste,
@@ -35,6 +36,7 @@ impl FileMenuItem {
         Self::CopyName,
         Self::CopyPath,
         Self::Reveal,
+        Self::OpenLocation,
         Self::OpenParent,
         Self::Edit,
         Self::Info,
@@ -58,6 +60,10 @@ impl FileMenuItem {
             Self::Reveal => (
                 crate::i18n::text("탐색기에서 보기", "Show in Explorer"),
                 "Ctrl+Enter",
+            ),
+            Self::OpenLocation => (
+                crate::i18n::text("해당 폴더 열기", "Open containing folder"),
+                "",
             ),
             Self::OpenParent => (
                 crate::i18n::text("상위 폴더 열기", "Open parent folder"),
@@ -979,6 +985,25 @@ impl SearchPane {
                                         .collect::<Vec<_>>()
                                         .join("\r\n"),
                                 );
+                                ui.close();
+                            }
+                            if menu
+                                .button(
+                                    ui,
+                                    FileMenuItem::OpenLocation,
+                                    path.is_some() && self.selection.items.len() == 1,
+                                )
+                                .clicked()
+                                && let Some(path) = path
+                            {
+                                action = Some(if row.directory {
+                                    Job::Open {
+                                        path: path.clone(),
+                                        directory: true,
+                                    }
+                                } else {
+                                    Job::Reveal(path.clone())
+                                });
                                 ui.close();
                             }
                             if menu

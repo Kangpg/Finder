@@ -33,6 +33,8 @@ For tray/shortcut recovery, test the native notification boundary with a hidden 
 
 ## Packaging and source export
 
+File launches must carry an owned working-directory buffer alongside the exact PIDL; never change the application's process-wide current directory to launch a selected script. Keep default open/edit and native IContextMenu invocation consistent. Check the actual Shell request's directory with temporary Unicode/space paths without executing the user's batch files, and verify custom commands in the root HMENU rather than only in the Ctrl+right-click app menu.
+
 Product display name, publisher, identity and installation marker live in product.json and are consumed by build.rs and the release script. Icon geometry is owned by src/icon_art.rs; PE resources, installer, window and tray derive from it. The MSVC target statically links CRT; verify direct PE imports rather than silently installing a system runtime.
 
 Use scripts/build-release.ps1 with NSIS 3.13 to make the per-user setup EXE and portable ZIP. The installer payload alone contains finder.install. app_paths selects profile data for an owned install marker and executable-relative data for portable mode. Unknown or unreadable markers must not silently pick a new data location. Uninstall removes only named product files and its owned integration; profile/portable user data must survive. Verify install and removal in a new temporary directory only after ensuring no existing uninstall registration or shortcut would be overwritten. Do not start the GUI as part of silent packaging verification. NSIS uses a 32-bit bootstrapper around the x64 application; distinguish the two PE architectures in reports.

@@ -74,6 +74,7 @@ impl Drop for Pidl {
 const MAX_BYTES: usize = 16 * 1024 * 1024;
 pub struct Selection {
     pidls: Vec<Vec<u8>>,
+    working_directory: Option<Vec<u16>>,
 }
 pub fn prepare(paths: &[PathBuf], epoch: &AtomicU64, id: u64) -> Result<Selection> {
     ensure!(
@@ -130,9 +131,20 @@ pub fn prepare(paths: &[PathBuf], epoch: &AtomicU64, id: u64) -> Result<Selectio
             "Shell selection preparation canceled"
         )
     );
-    Ok(Selection { pidls })
+    let parent = paths.first().and_then(|path| path.parent());
+    let working_directory = parent
+        .filter(|parent| paths.iter().all(|path| path.parent() == Some(*parent)))
+        .map(wide)
+        .transpose()?;
+    Ok(Selection {
+        pidls,
+        working_directory,
+    })
 }
 impl Selection {
+    pub(crate) fn working_directory(&self) -> Option<&[u16]> {
+        self.working_directory.as_deref()
+    }
     pub(crate) fn pointers(&self) -> Vec<*const windows::Win32::UI::Shell::Common::ITEMIDLIST> {
         self.pidls.iter().map(|b| b.as_ptr().cast()).collect()
     }

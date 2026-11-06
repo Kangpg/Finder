@@ -439,6 +439,7 @@ impl Drop for Com {
 struct PreparedOpen {
     pidl: crate::shell_path::Pidl,
     verb: windows::core::PCWSTR,
+    working_directory: Vec<u16>,
 }
 #[cfg(windows)]
 impl PreparedOpen {
@@ -469,7 +470,20 @@ impl PreparedOpen {
         } else {
             windows::core::PCWSTR::null()
         };
-        Ok(Self { pidl, verb })
+        let directory_path = if directory {
+            path
+        } else {
+            path.parent().context(crate::i18n::Message::new(
+                "파일의 상위 폴더가 없습니다",
+                "The file has no parent folder",
+            ))?
+        };
+        let working_directory = crate::shell_path::wide(directory_path)?;
+        Ok(Self {
+            pidl,
+            verb,
+            working_directory,
+        })
     }
     fn info(&self) -> windows::Win32::UI::Shell::SHELLEXECUTEINFOW {
         use windows::Win32::UI::{Shell::*, WindowsAndMessaging::SW_SHOWNORMAL};
@@ -478,6 +492,7 @@ impl PreparedOpen {
             fMask: SEE_MASK_IDLIST | SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
             lpVerb: self.verb,
             lpIDList: self.pidl.0.cast(),
+            lpDirectory: windows::core::PCWSTR(self.working_directory.as_ptr()),
             nShow: SW_SHOWNORMAL.0,
             ..Default::default()
         }
@@ -495,6 +510,36 @@ impl PreparedOpen {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    #[test]
+    fn file_launches_own_the_selected_items_working_directory() {
+        let com = Com::new();
+        assert!(com.0 >= 0);
+        let temp = tempfile::tempdir().unwrap();
+        let folder = temp.path().join("한글 배치 & config");
+        std::fs::create_dir(&folder).unwrap();
+        let original = std::env::current_dir().unwrap();
+        for name in ["start.bat", "start.cmd", "tool.exe"] {
+            let path = folder.join(name);
+            std::fs::write(&path, b"not executed").unwrap();
+            for edit in [false, true] {
+                let prepared = PreparedOpen::new(&path, false, edit).unwrap();
+                let working = unsafe { prepared.info().lpDirectory.to_string().unwrap() };
+                assert_eq!(
+                    dunce::canonicalize(working).unwrap(),
+                    dunce::canonicalize(&folder).unwrap()
+                );
+                assert!(prepared.info().lpFile.is_null());
+            }
+        }
+        let prepared = PreparedOpen::new(&folder, true, false).unwrap();
+        let working = unsafe { prepared.info().lpDirectory.to_string().unwrap() };
+        assert_eq!(
+            dunce::canonicalize(working).unwrap(),
+            dunce::canonicalize(&folder).unwrap()
+        );
+        assert_eq!(std::env::current_dir().unwrap(), original);
+    }
     #[cfg(windows)]
     #[test]
     fn opening_folder_binds_exact_item_despite_adjacent_batch_file() {
